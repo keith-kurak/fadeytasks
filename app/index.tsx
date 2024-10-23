@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   SafeAreaView,
   FlatList,
@@ -12,30 +12,15 @@ import {
   TextStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Progress from "react-native-progress";
+import { useTodos, Todo } from "@/data/useTodos";
 
-interface Todo {
-  id: string;
-  text: string;
-  completed: boolean;
-  timestamp?: string;
-  timeLimit?: number;
-}
-
-function headerToMinutes(time: string): number {
-  switch (time) {
-    case "15 m":
-      return 15;
-    case "1 hr":
-      return 60;
-    case "24 hr":
-      return 1440;
-    default:
-      return 0;
-  }
-}
+const TIME_LIMITS = [1, 15, 60, 1440];
 
 function minutesToHeader(minutes: number): string {
   switch (minutes) {
+    case 1:
+      return "1 m";
     case 15:
       return "15 m";
     case 60:
@@ -48,13 +33,39 @@ function minutesToHeader(minutes: number): string {
 }
 
 const ToDoScreen: React.FC = () => {
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const {todos, setTodos} = useTodos();
   const [newTodo, setNewTodo] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<number>(15);
 
   const getCurrentTimestamp = (): string => {
     return new Date().toISOString().slice(0, 19).replace("T", " ");
   };
+
+  const calculateProgress = (timestamp: string, timeLimit: number): number => {
+    const createdTime = new Date(timestamp).getTime();
+    const currentTime = new Date(getCurrentTimestamp()).getTime();
+    const elapsedTime = (currentTime - createdTime) / (1000 * 60); // convert to minutes
+
+    // Ensure progress stays between 0 and 1
+    return Math.max(0, 1 - elapsedTime / timeLimit);
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTodos(async (prevTodos) => {
+        (await prevTodos).forEach((todo) => {
+          if (todo.timeLimit && todo.timestamp) {
+            const progress = calculateProgress(todo.timestamp, todo.timeLimit);
+            if (progress <= 0) {
+              todo.abandoned = true;
+            }
+          }
+        });
+        return [...await prevTodos];
+      }); // trigger re-render
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const addTodo = () => {
     if (newTodo.trim()) {
@@ -80,18 +91,32 @@ const ToDoScreen: React.FC = () => {
     );
   };
 
-  const renderTodo = ({ item }: { item: Todo }) => (
-    <View style={$todoItem}>
-      <TouchableOpacity
-        style={{ flex: 1 }}
-        onPress={() => toggleComplete(item.id)}
-      >
-        <Text style={item.completed ? $completedText : $todoText}>
-          {item.text}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderTodo = ({ item }: { item: Todo }) => {
+    const progress = calculateProgress(item.timestamp!, item.timeLimit!);
+    return (
+      <View style={$todoItem}>
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          onPress={() => toggleComplete(item.id)}
+        >
+          <Text
+            style={[
+              item.completed ? $completedText : $todoText,
+              { opacity: 0.05 + 0.95 * progress },
+            ]}
+          >
+            {item.text}
+          </Text>
+        </TouchableOpacity>
+        <Progress.Pie
+          progress={progress}
+          size={20}
+          color="#ccc"
+          style={$progressIndicator}
+        />
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={$container}>
@@ -111,7 +136,7 @@ const ToDoScreen: React.FC = () => {
             },
           ]}
         >
-          {[15, 60, 1440].map((time) => (
+          {TIME_LIMITS.map((time) => (
             <TouchableOpacity
               key={time}
               style={[
@@ -132,7 +157,7 @@ const ToDoScreen: React.FC = () => {
           ))}
         </View>
         <FlatList
-          data={todos.filter(todo => todo.timeLimit === selectedTime)}
+          data={todos.filter((todo) => todo.timeLimit === selectedTime && !todo.abandoned)}
           renderItem={renderTodo}
           keyExtractor={(item) => item.id}
           ListFooterComponent={
@@ -227,6 +252,10 @@ const $segmentButtonText: TextStyle = {
 
 const $selectedSegmentButtonText: TextStyle = {
   color: "#fff",
+};
+
+const $progressIndicator: ViewStyle = {
+  marginLeft: 8,
 };
 
 export default ToDoScreen;
