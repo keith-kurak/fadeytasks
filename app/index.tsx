@@ -11,17 +11,46 @@ import {
   ViewStyle,
   TextStyle,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 interface Todo {
   id: string;
   text: string;
   completed: boolean;
   timestamp?: string;
+  timeLimit?: number;
+}
+
+function headerToMinutes(time: string): number {
+  switch (time) {
+    case "15 m":
+      return 15;
+    case "1 hr":
+      return 60;
+    case "24 hr":
+      return 1440;
+    default:
+      return 0;
+  }
+}
+
+function minutesToHeader(minutes: number): string {
+  switch (minutes) {
+    case 15:
+      return "15 m";
+    case 60:
+      return "1 hr";
+    case 1440:
+      return "24 hr";
+    default:
+      return "15 m";
+  }
 }
 
 const ToDoScreen: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [newTodo, setNewTodo] = useState<string>("");
+  const [selectedTime, setSelectedTime] = useState<number>(15);
 
   const getCurrentTimestamp = (): string => {
     return new Date().toISOString().slice(0, 19).replace("T", " ");
@@ -36,6 +65,7 @@ const ToDoScreen: React.FC = () => {
           text: newTodo,
           completed: false,
           timestamp: getCurrentTimestamp(),
+          timeLimit: selectedTime,
         },
       ]);
       setNewTodo("");
@@ -69,8 +99,40 @@ const ToDoScreen: React.FC = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={$container}
       >
+        <View
+          style={[
+            $segmentedControl,
+            {
+              borderRadius: 10,
+              borderWidth: 1,
+              overflow: "hidden",
+              borderColor: "#ccc",
+              alignSelf: "center",
+            },
+          ]}
+        >
+          {[15, 60, 1440].map((time) => (
+            <TouchableOpacity
+              key={time}
+              style={[
+                $segmentButton,
+                selectedTime === time && $selectedSegmentButton,
+              ]}
+              onPress={() => setSelectedTime(time)}
+            >
+              <Text
+                style={[
+                  $segmentButtonText,
+                  selectedTime === time && $selectedSegmentButtonText,
+                ]}
+              >
+                {minutesToHeader(time)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         <FlatList
-          data={todos}
+          data={todos.filter(todo => todo.timeLimit === selectedTime)}
           renderItem={renderTodo}
           keyExtractor={(item) => item.id}
           ListFooterComponent={
@@ -79,10 +141,11 @@ const ToDoScreen: React.FC = () => {
                 style={$input}
                 value={newTodo}
                 onChangeText={setNewTodo}
-                placeholder="Add new task..."
+                placeholder="New todo"
+                placeholderTextColor={"#ccc"}
               />
               <TouchableOpacity style={$addButton} onPress={addTodo}>
-                <Text style={$addButtonText}>Add</Text>
+                <Ionicons name="add" size={24} color="white" />
               </TouchableOpacity>
             </View>
           }
@@ -101,21 +164,21 @@ const $container: ViewStyle = {
 const $todoItem: ViewStyle = {
   flexDirection: "row",
   alignItems: "center",
-  padding: 8,
+  paddingVertical: 10,
+  paddingHorizontal: 8,
   borderBottomWidth: 1,
   borderColor: "#ccc",
   width: "100%",
 };
 
 const $todoText: TextStyle = {
-  marginLeft: 8,
-  fontSize: 16,
+  fontSize: 20,
   flex: 1,
 };
 
 const $completedText: TextStyle = {
-  marginLeft: 8,
-  fontSize: 16,
+  fontSize: 20,
+  color: "#ccc",
   textDecorationLine: "line-through",
 };
 
@@ -127,23 +190,43 @@ const $footer: ViewStyle = {
 
 const $input: TextStyle = {
   flex: 1,
-  borderWidth: 1,
+  borderBottomWidth: 1,
   borderColor: "#ccc",
   padding: 8,
   marginRight: 8,
-  borderRadius: 4,
+  fontSize: 20,
 };
 
 const $addButton: ViewStyle = {
-  backgroundColor: "#007bff",
+  backgroundColor: "#ccc",
   borderRadius: 50,
-  paddingVertical: 8,
-  paddingHorizontal: 16,
+  padding: 8,
+  justifyContent: "center",
+  alignItems: "center",
+  width: 40,
+  height: 40,
 };
 
-const $addButtonText: TextStyle = {
+const $segmentedControl: ViewStyle = {
+  flexDirection: "row",
+  justifyContent: "center",
+  marginBottom: 16,
+};
+
+const $segmentButton: ViewStyle = {
+  padding: 8,
+};
+
+const $selectedSegmentButton: ViewStyle = {
+  backgroundColor: "#ccc",
+};
+
+const $segmentButtonText: TextStyle = {
+  color: "#ccc",
+};
+
+const $selectedSegmentButtonText: TextStyle = {
   color: "#fff",
-  fontSize: 16,
 };
 
 export default ToDoScreen;
